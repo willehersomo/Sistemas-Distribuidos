@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.3
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.3
+    ports:
+      - "9092:9092"
+      - "19092:19092" 
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://10.117.70.228:19092 #pra testar em outra maquina, muda aqui pro ip produtor
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+
+  kafka_ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8081:8080" 
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092 
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+    depends_on:
+      - kafka
+      - zookeeper
+    restart: always 
+
+  produtor:
+    image: python:3.11
+    volumes:
+      - ./produtor:/app
+    working_dir: /app
+    command: bash -c "pip install -r requisitos.txt && python produtor.py"
+    depends_on:
+      - kafka
+
+  consumidor:
+    image: openjdk:17-jdk-slim
+    volumes:
+      - ./consumidor:/app 
+    working_dir: /app
+    command: bash -c "javac -cp '.:libs/*' Consumidor.java && java -cp '.:libs/*' Consumidor"
+    depends_on:
+      - kafka
+      - produtor
